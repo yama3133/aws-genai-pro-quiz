@@ -1,0 +1,15 @@
+.DS_Store
+*.bak_*
+
+# Python (agent/)
+agent/.venv/
+agent/__pycache__/
+agent/tools/__pycache__/
+agent/*.pyc
+agent/.bedrock_agentcore/
+
+# Lambda build artifacts
+lambda/function.zip
+
+# Vercel
+.vercel

@@ -1,0 +1,62 @@
+default_agent: aipquizcoach
+agents:
+  aipquizcoach:
+    name: aipquizcoach
+    language: python
+    node_version: '20'
+    entrypoint: /Users/yuukiyamashita/aws-genai-pro-quiz/agent/agent.py
+    deployment_type: direct_code_deploy
+    runtime_type: PYTHON_3_13
+    platform: linux/arm64
+    container_runtime: null
+    source_path: /Users/yuukiyamashita/aws-genai-pro-quiz/agent
+    aws:
+      execution_role: arn:aws:iam::761018866498:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-36a50f870b
+      execution_role_auto_create: false
+      account: '761018866498'
+      region: us-east-1
+      ecr_repository: null
+      ecr_auto_create: false
+      s3_path: s3://bedrock-agentcore-codebuild-sources-761018866498-us-east-1
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: aipquizcoach-0qdXnb3WWA
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:761018866498:runtime/aipquizcoach-0qdXnb3WWA
+      agent_session_id: 03696172-55d2-4a5d-b3db-4757262c0aa7
+    codebuild:
+      project_name: null
+      execution_role: arn:aws:iam::761018866498:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-36a50f870b
+      source_bucket: null
+    memory:
+      mode: STM_ONLY
+      memory_id: aipquizcoach_mem-AWLeZDF3XQ
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:761018866498:memory/aipquizcoach_mem-AWLeZDF3XQ
+      memory_name: aipquizcoach_mem
+      event_expiry_days: 30
+      first_invoke_memory_check_done: true
+      was_created_by_toolkit: true
+    identity:
+      credential_providers: []
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false

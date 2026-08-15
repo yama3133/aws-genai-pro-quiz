@@ -1,0 +1,11 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InvokeAgentRuntime",
+      "Effect": "Allow",
+      "Action": ["bedrock-agentcore:InvokeAgentRuntime"],
+      "Resource": ["arn:aws:bedrock-agentcore:us-east-1:761018866498:runtime/aipquizcoach*"]
+    }
+  ]
+}
