@@ -1,0 +1,7 @@
+.git
+.claude
+agent
+lambda
+README.md
+.gitignore
+*.bak_*
