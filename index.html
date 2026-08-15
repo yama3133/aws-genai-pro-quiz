@@ -85,16 +85,21 @@
   <section class="quiz">
     <aside class="quiz-nav">
       <div class="quiz-nav-header">
-        <span id="quizModeLabel"></span>
-        <span id="quizProgressLabel"></span>
+        <div class="quiz-nav-titles">
+          <span id="quizModeLabel"></span>
+          <span id="quizProgressLabel"></span>
+        </div>
+        <button id="navToggleBtn" class="nav-toggle-btn" type="button" aria-expanded="true" title="問題一覧の表示切替">▲</button>
       </div>
-      <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
-      <div id="qNavGrid" class="qnav-grid"></div>
-      <div class="qnav-legend">
-        <span><i class="dot dot-correct"></i>正解</span>
-        <span><i class="dot dot-incorrect"></i>不正解</span>
-        <span><i class="dot dot-current"></i>現在</span>
-        <span><i class="dot dot-unanswered"></i>未回答</span>
+      <div id="quizNavBody" class="quiz-nav-body">
+        <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+        <div id="qNavGrid" class="qnav-grid"></div>
+        <div class="qnav-legend">
+          <span><i class="dot dot-correct"></i>正解</span>
+          <span><i class="dot dot-incorrect"></i>不正解</span>
+          <span><i class="dot dot-current"></i>現在</span>
+          <span><i class="dot dot-unanswered"></i>未回答</span>
+        </div>
       </div>
     </aside>
 

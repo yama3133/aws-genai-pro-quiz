@@ -237,6 +237,14 @@
     appEl.appendChild(tpl.content.cloneNode(true));
     document.getElementById('quizModeLabel').textContent = label;
 
+    const navEl = document.querySelector('.quiz-nav');
+    const navToggleBtn = document.getElementById('navToggleBtn');
+    navToggleBtn.addEventListener('click', () => {
+      const collapsed = navEl.classList.toggle('is-collapsed');
+      navToggleBtn.textContent = collapsed ? '▼' : '▲';
+      navToggleBtn.setAttribute('aria-expanded', String(!collapsed));
+    });
+
     buildNavGrid();
     renderQuestion();
 
