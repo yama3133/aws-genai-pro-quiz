@@ -3,14 +3,18 @@
   const timerBox = document.getElementById('timerBox');
   const timerValue = document.getElementById('timerValue');
   const quitBtn = document.getElementById('quitBtn');
+  const langSelect = document.getElementById('langSelect');
 
   const ALL_Q = QUESTIONS; // from questions.js
   const DOMAIN_LIST = DOMAINS; // from questions.js
 
   // AgentCore Runtime上のStrands Agent(aipquizcoach)を叩くAPI Gatewayプロキシ
+  // 同じエンドポイントを 'translate' アクション(Bedrock直呼び出し)にも使う
   const AGENT_API = "https://k274l7ontb.execute-api.us-east-1.amazonaws.com/";
   const HISTORY_KEY = "aip_history_v1";
   const HISTORY_MAX = 300;
+  const TR_CACHE_KEY = "aip_translation_cache_v1";
+  const TR_CACHE_MAX = 800;
 
   function loadHistory() {
     try {
@@ -31,7 +35,7 @@
     return {
       id: q.id,
       domain: q.domain,
-      domainName: domainName(q.domain),
+      domainName: domainObjName(q.domain, "ja"),
       correct,
       question: q.question.slice(0, 200),
       explanation: q.explanation.slice(0, 300),
@@ -51,6 +55,54 @@
     return data;
   }
 
+  // ---------- Translation cache (question text, per question id + lang) ----------
+  const translationCache = new Map(); // `${qid}:${lang}` -> {question, options, explanation}
+  (function loadTrCache() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(TR_CACHE_KEY) || "[]");
+      arr.forEach(([k, v]) => translationCache.set(k, v));
+    } catch { /* ignore */ }
+  })();
+
+  function persistTrCache() {
+    let entries = [...translationCache.entries()];
+    if (entries.length > TR_CACHE_MAX) entries = entries.slice(entries.length - TR_CACHE_MAX);
+    try {
+      localStorage.setItem(TR_CACHE_KEY, JSON.stringify(entries));
+    } catch { /* storage full, ignore */ }
+  }
+
+  async function fetchTranslation(q, lang) {
+    const texts = [q.question, ...q.options.map(o => o.text), q.explanation];
+    const res = await callAgent({ action: "translate", targetLang: lang, texts });
+    const arr = res.translations;
+    if (!Array.isArray(arr) || arr.length !== texts.length) throw new Error("bad translation response");
+    return {
+      question: arr[0],
+      options: q.options.map((o, i) => ({ id: o.id, text: arr[i + 1] })),
+      explanation: arr[arr.length - 1],
+    };
+  }
+
+  function plainTextOf(q) {
+    return { question: q.question, options: q.options, explanation: q.explanation };
+  }
+
+  async function ensureTranslated(q, lang) {
+    if (lang === "ja") return plainTextOf(q);
+    const key = q.id + ":" + lang;
+    if (translationCache.has(key)) return translationCache.get(key);
+    const tr = await fetchTranslation(q, lang);
+    translationCache.set(key, tr);
+    persistTrCache();
+    return tr;
+  }
+
+  function cachedTextOf(q, lang) {
+    if (lang === "ja") return plainTextOf(q);
+    return translationCache.get(q.id + ":" + lang) || null;
+  }
+
   const state = {
     mode: null,          // 'random200' | 'category100' | 'mock85' | 'flash150'
     showFeedback: true,  // false for mock exam
@@ -61,6 +113,10 @@
     timerId: null,
     secondsLeft: 0,
     flashFlipped: false,
+    modeLabelInfo: null,   // { key: 'random'|'category'|'mock'|'weakfocus', domainId? }
+    resultData: null,      // computed once in finishQuiz, reused on language change
+    translateToken: 0,
+    flashTranslateToken: 0,
   };
 
   function shuffle(arr) {
@@ -72,13 +128,66 @@
     return a;
   }
 
+  function domainObj(id) {
+    return DOMAIN_LIST.find(x => x.id === id);
+  }
+
+  function domainObjName(id, lang) {
+    const d = domainObj(id);
+    return d ? translatedDomainName(d, lang) : "";
+  }
+
   function domainName(id) {
-    const d = DOMAIN_LIST.find(x => x.id === id);
-    return d ? d.nameJa : '';
+    return domainObjName(id, getLang());
   }
 
   function byDomain(id) {
     return ALL_Q.filter(q => q.domain === id);
+  }
+
+  function quizModeLabelText() {
+    const info = state.modeLabelInfo;
+    if (!info) return "";
+    if (info.key === "random") return t("home.random.label");
+    if (info.key === "mock") return t("home.mock.label");
+    if (info.key === "weakfocus") return t("home.aiWeak.label");
+    if (info.key === "category") return t("home.category.label", { name: domainName(info.domainId) });
+    return "";
+  }
+
+  // ---------- Language switching ----------
+  function applyHeaderI18n() {
+    applyI18n(document.querySelector('.topbar'));
+  }
+
+  function setupLangSelect() {
+    populateLangSelect(langSelect);
+    applyHeaderI18n();
+    langSelect.addEventListener("change", () => {
+      setLang(langSelect.value);
+      applyDocumentLangDir();
+      applyHeaderI18n();
+      rerenderCurrentView();
+    });
+  }
+
+  function rerenderCurrentView() {
+    const root = appEl.firstElementChild;
+    const cls = root && root.className;
+    if (!cls || cls.includes("home")) {
+      renderHome();
+    } else if (cls.includes("quiz")) {
+      document.getElementById("quizModeLabel").textContent = quizModeLabelText();
+      applyI18n(appEl);
+      renderQuestion();
+    } else if (cls.includes("flash")) {
+      applyI18n(appEl);
+      renderFlash();
+    } else if (cls.includes("result")) {
+      renderResultView();
+    } else {
+      renderHome();
+    }
   }
 
   // ---------- Home ----------
@@ -89,14 +198,15 @@
     const tpl = document.getElementById('tpl-home');
     appEl.innerHTML = '';
     appEl.appendChild(tpl.content.cloneNode(true));
+    applyI18n(appEl);
 
-    document.getElementById('stockCount').textContent = ALL_Q.length.toLocaleString();
+    document.getElementById('stockLine').textContent = t('home.stock', { n: ALL_Q.length.toLocaleString() });
 
     const chipsEl = document.getElementById('domainChips');
     DOMAIN_LIST.forEach(d => {
       const chip = document.createElement('span');
       chip.className = 'domain-chip';
-      chip.textContent = `D${d.id}: ${d.nameJa} (${d.weight}% / ${byDomain(d.id).length}問)`;
+      chip.textContent = t('home.domainChip', { id: d.id, name: translatedDomainName(d), weight: d.weight, count: byDomain(d.id).length });
       chipsEl.appendChild(chip);
     });
 
@@ -104,7 +214,7 @@
     DOMAIN_LIST.forEach(d => {
       const opt = document.createElement('option');
       opt.value = d.id;
-      opt.textContent = `ドメイン${d.id}: ${d.nameJa}`;
+      opt.textContent = t('home.categoryOption', { id: d.id, name: translatedDomainName(d) });
       catSelect.appendChild(opt);
     });
 
@@ -131,7 +241,7 @@
     const weakStatus = document.getElementById('weakFocusStatus');
     weakBtn.addEventListener('click', async () => {
       weakBtn.disabled = true;
-      weakStatus.textContent = 'AIが問題を選定中…(数十秒かかる場合があります)';
+      weakStatus.textContent = t('home.aiWeak.picking');
       try {
         const pool = ALL_Q.map(q => ({ id: q.id, domain: q.domain }));
         const history = loadHistory().map(h => ({ id: h.id, domain: h.domain, correct: h.correct }));
@@ -139,9 +249,9 @@
         const byId = new Map(ALL_Q.map(q => [q.id, q]));
         const ordered = (res.selected_ids || []).map(id => byId.get(id)).filter(Boolean);
         if (!ordered.length) throw new Error('empty selection');
-        beginQuiz('weakfocus', ordered, true, 'AIおすすめ: 苦手問題を復習');
+        beginQuiz('weakfocus', ordered, true, { key: 'weakfocus' });
       } catch (e) {
-        weakStatus.textContent = 'AIの呼び出しに失敗しました。しばらくしてから再度お試しください。';
+        weakStatus.textContent = t('home.aiWeak.fail');
         weakBtn.disabled = false;
       }
     });
@@ -152,11 +262,11 @@
       const history = loadHistory();
       analyzeResult.classList.remove('hidden');
       if (!history.length) {
-        analyzeResult.textContent = 'まだ演習履歴がありません。まずは問題を解いてみてください。';
+        analyzeResult.textContent = t('home.aiAnalyze.empty');
         return;
       }
       analyzeBtn.disabled = true;
-      analyzeResult.textContent = 'AIが分析中…(数十秒かかる場合があります)';
+      analyzeResult.textContent = t('home.aiAnalyze.analyzing');
       try {
         const payloadHistory = history.map(h => ({
           id: h.id,
@@ -166,10 +276,10 @@
           question: h.correct ? undefined : h.question,
           explanation: h.correct ? undefined : h.explanation,
         }));
-        const res = await callAgent({ action: 'analyze', history: payloadHistory });
-        analyzeResult.textContent = res.analysis || '分析結果を取得できませんでした。';
+        const res = await callAgent({ action: 'analyze', history: payloadHistory, lang: getLang() });
+        analyzeResult.textContent = res.analysis || t('home.aiAnalyze.empty2');
       } catch (e) {
-        analyzeResult.textContent = 'AIの呼び出しに失敗しました。しばらくしてから再度お試しください。';
+        analyzeResult.textContent = t('home.aiAnalyze.fail');
       } finally {
         analyzeBtn.disabled = false;
       }
@@ -179,12 +289,12 @@
   // ---------- Mode starters ----------
   function startRandom200() {
     const pool = shuffle(ALL_Q).slice(0, Math.min(200, ALL_Q.length));
-    beginQuiz('random200', pool, true, 'ランダム出題');
+    beginQuiz('random200', pool, true, { key: 'random' });
   }
 
   function startCategory100(domainId) {
     const pool = shuffle(byDomain(domainId)).slice(0, 100);
-    beginQuiz('category100', pool, true, `カテゴリー別: ${domainName(domainId)}`);
+    beginQuiz('category100', pool, true, { key: 'category', domainId });
   }
 
   function startMock85() {
@@ -210,7 +320,7 @@
       pool = pool.concat(leftover.slice(0, total - pool.length));
     }
     pool = shuffle(pool);
-    beginQuiz('mock85', pool, false, '模擬試験');
+    beginQuiz('mock85', pool, false, { key: 'mock' });
   }
 
   function startFlash150() {
@@ -219,23 +329,25 @@
   }
 
   // ---------- Quiz engine ----------
-  function beginQuiz(mode, questions, showFeedback, label) {
+  function beginQuiz(mode, questions, showFeedback, modeLabelInfo) {
     state.mode = mode;
     state.questions = questions;
     state.showFeedback = showFeedback;
     state.answers = {};
     state.submitted = {};
     state.current = 0;
+    state.modeLabelInfo = modeLabelInfo;
 
     quitBtn.classList.remove('hidden');
     quitBtn.onclick = () => {
-      if (confirm('学習を中断してホームに戻りますか?進捗は失われます。')) renderHome();
+      if (confirm(t('quit.confirm'))) renderHome();
     };
 
     const tpl = document.getElementById('tpl-quiz');
     appEl.innerHTML = '';
     appEl.appendChild(tpl.content.cloneNode(true));
-    document.getElementById('quizModeLabel').textContent = label;
+    applyI18n(appEl);
+    document.getElementById('quizModeLabel').textContent = quizModeLabelText();
 
     const navEl = document.querySelector('.quiz-nav');
     const navToggleBtn = document.getElementById('navToggleBtn');
@@ -286,7 +398,7 @@
     });
     const answeredCount = Object.keys(state.submitted).length;
     document.getElementById('quizProgressLabel').textContent =
-      `${state.current + 1} / ${state.questions.length} (回答済み ${answeredCount})`;
+      t('quiz.progress', { cur: state.current + 1, total: state.questions.length, n: answeredCount });
     document.getElementById('progressFill').style.width =
       `${((state.current + 1) / state.questions.length) * 100}%`;
   }
@@ -299,12 +411,29 @@
 
   function renderQuestion() {
     const q = state.questions[state.current];
+    const lang = getLang();
+    const cached = cachedTextOf(q, lang);
+    renderQuestionWithText(q, cached || plainTextOf(q));
+
+    if (lang !== 'ja' && !cached) {
+      const myToken = ++state.translateToken;
+      ensureTranslated(q, lang).then(tr => {
+        if (state.translateToken !== myToken) return; // superseded by newer navigation
+        if (state.questions[state.current] !== q) return;
+        renderQuestionWithText(q, tr);
+      }).catch(() => { /* keep original text on failure */ });
+    } else {
+      ++state.translateToken; // invalidate any in-flight request for a previous question
+    }
+  }
+
+  function renderQuestionWithText(q, textData) {
     const isMulti = q.type === 'multi';
 
     document.getElementById('qDomainBadge').textContent = `D${q.domain}: ${domainName(q.domain)}`;
     document.getElementById('qTypeBadge').textContent = isMulti
-      ? `複数選択(${q.correct.length}つ選択)` : '単一選択';
-    document.getElementById('qText').textContent = q.question;
+      ? t('quiz.multi', { n: q.correct.length }) : t('quiz.single');
+    document.getElementById('qText').textContent = textData.question;
 
     const optsEl = document.getElementById('qOptions');
     optsEl.innerHTML = '';
@@ -312,6 +441,7 @@
     const selected = state.answers[q.id] || [];
 
     q.options.forEach(opt => {
+      const trOpt = textData.options.find(o => o.id === opt.id) || opt;
       const row = document.createElement('label');
       row.className = 'qoption';
       const input = document.createElement('input');
@@ -334,7 +464,7 @@
       });
 
       const text = document.createElement('span');
-      text.textContent = `${opt.id}. ${opt.text}`;
+      text.textContent = `${opt.id}. ${trOpt.text}`;
 
       row.appendChild(input);
       row.appendChild(text);
@@ -349,8 +479,8 @@
     const finishBtn = document.getElementById('finishBtn');
     const isLast = state.current === state.questions.length - 1;
 
-    if (state.showFeedback && alreadySubmitted) {
-      showFeedback(q);
+    if (state.showFeedback && !!state.submitted[q.id]) {
+      showFeedback(q, textData);
       submitBtn.classList.add('hidden');
     } else {
       feedback.classList.add('hidden');
@@ -387,13 +517,13 @@
     });
   }
 
-  function showFeedback(q) {
+  function showFeedback(q, textData) {
     const feedback = document.getElementById('qFeedback');
     const head = document.getElementById('qFeedbackHead');
     const correct = isAnswerCorrect(q);
-    head.textContent = correct ? '✓ 正解' : `✗ 不正解 (正解: ${q.correct.join(', ')})`;
+    head.textContent = correct ? t('quiz.feedback.correct') : t('quiz.feedback.incorrect', { answer: q.correct.join(', ') });
     head.className = 'qfeedback-head ' + (correct ? 'correct' : 'incorrect');
-    document.getElementById('qExplanation').textContent = q.explanation;
+    document.getElementById('qExplanation').textContent = textData.explanation;
     feedback.classList.remove('hidden');
   }
 
@@ -432,7 +562,7 @@
       updateTimerDisplay();
       if (state.secondsLeft <= 0) {
         stopTimer();
-        alert('制限時間になりました。ここまでの回答で採点します。');
+        alert(t('quiz.timeUp'));
         finishQuiz();
       }
     }, 1000);
@@ -482,14 +612,23 @@
       if (correct) domainStats[q.domain].correct++;
     });
 
+    state.resultData = { total, correctCount, domainStats };
+    renderResultView();
+  }
+
+  function renderResultView() {
+    const { total, correctCount, domainStats } = state.resultData;
+    const lang = getLang();
+
     const tpl = document.getElementById('tpl-result');
     appEl.innerHTML = '';
     appEl.appendChild(tpl.content.cloneNode(true));
+    applyI18n(appEl);
 
     const pct = total ? Math.round((correctCount / total) * 100) : 0;
     document.getElementById('resultTitle').textContent =
-      state.mode === 'mock85' ? '模擬試験 結果' : '演習結果';
-    document.getElementById('resultScore').textContent = `${correctCount} / ${total} 正解 (${pct}%)`;
+      state.mode === 'mock85' ? t('result.mockTitle') : t('result.normalTitle');
+    document.getElementById('resultScore').textContent = t('result.score', { correct: correctCount, total, pct });
 
     const barsEl = document.getElementById('resultBars');
     DOMAIN_LIST.forEach(d => {
@@ -499,25 +638,38 @@
       row.className = 'result-bar-row';
       const p = Math.round((st.correct / st.total) * 100);
       row.innerHTML = `
-        <span class="label">D${d.id}: ${d.nameJa}</span>
+        <span class="label">D${d.id}: ${escapeHtml(translatedDomainName(d, lang))}</span>
         <div class="result-bar-track"><div class="result-bar-fill" style="width:${p}%"></div></div>
         <span>${st.correct}/${st.total}</span>`;
       barsEl.appendChild(row);
     });
 
     const reviewEl = document.getElementById('reviewList');
+    reviewEl.innerHTML = '';
     state.questions.forEach((q, i) => {
       const answered = !!state.submitted[q.id];
       const correct = answered && isAnswerCorrect(q);
       const item = document.createElement('div');
       item.className = 'review-item ' + (correct ? '' : 'wrong');
-      const selText = (state.answers[q.id] || []).join(', ') || 'なし';
-      item.innerHTML = `
-        <div class="qtext">${i + 1}. ${escapeHtml(q.question)}</div>
-        <p><strong>あなたの回答:</strong> ${escapeHtml(selText)} / <strong>正解:</strong> ${escapeHtml(q.correct.join(', '))}</p>
-        <p class="qexplanation">${escapeHtml(q.explanation)}</p>`;
+      item.dataset.qid = q.id;
+      renderReviewItem(item, q, i, cachedTextOf(q, lang) || plainTextOf(q));
       reviewEl.appendChild(item);
+
+      if (lang !== 'ja' && !cachedTextOf(q, lang)) {
+        ensureTranslated(q, lang).then(tr => {
+          if (getLang() !== lang) return; // language changed again meanwhile
+          renderReviewItem(item, q, i, tr);
+        }).catch(() => { /* keep original text */ });
+      }
     });
+  }
+
+  function renderReviewItem(item, q, i, textData) {
+    const selText = (state.answers[q.id] || []).join(', ') || t('result.none');
+    item.innerHTML = `
+      <div class="qtext">${i + 1}. ${escapeHtml(textData.question)}</div>
+      <p><strong>${escapeHtml(t('result.yourAnswer'))}</strong> ${escapeHtml(selText)} / <strong>${escapeHtml(t('result.correctAnswer'))}</strong> ${escapeHtml(q.correct.join(', '))}</p>
+      <p class="qexplanation">${escapeHtml(textData.explanation)}</p>`;
   }
 
   function escapeHtml(str) {
@@ -540,6 +692,7 @@
     const tpl = document.getElementById('tpl-flash');
     appEl.innerHTML = '';
     appEl.appendChild(tpl.content.cloneNode(true));
+    applyI18n(appEl);
     renderFlash();
 
     document.getElementById('flashCard').addEventListener('click', toggleFlash);
@@ -563,17 +716,41 @@
 
   function renderFlash() {
     const q = state.questions[state.current];
+    const lang = getLang();
+    const cached = cachedTextOf(q, lang);
+    renderFlashWithText(q, cached || plainTextOf(q));
+
+    if (lang !== 'ja' && !cached) {
+      const myToken = ++state.flashTranslateToken;
+      ensureTranslated(q, lang).then(tr => {
+        if (state.flashTranslateToken !== myToken) return;
+        if (state.questions[state.current] !== q) return;
+        renderFlashWithText(q, tr);
+      }).catch(() => { /* keep original text */ });
+    } else {
+      ++state.flashTranslateToken;
+    }
+  }
+
+  function renderFlashWithText(q, textData) {
     document.getElementById('flashProgressLabel').textContent =
       `${state.current + 1} / ${state.questions.length}`;
     document.getElementById('flashProgressFill').style.width =
       `${((state.current + 1) / state.questions.length) * 100}%`;
     document.getElementById('flashDomainBadge').textContent = `D${q.domain}: ${domainName(q.domain)}`;
-    document.getElementById('flashQuestion').textContent = q.question;
-    const correctOpts = q.options.filter(o => q.correct.includes(o.id)).map(o => `${o.id}. ${o.text}`);
+    document.getElementById('flashQuestion').textContent = textData.question;
+    const correctOpts = q.options
+      .filter(o => q.correct.includes(o.id))
+      .map(o => {
+        const trOpt = textData.options.find(x => x.id === o.id) || o;
+        return `${o.id}. ${trOpt.text}`;
+      });
     document.getElementById('flashAnswer').textContent = correctOpts.join(' / ');
-    document.getElementById('flashExplain').textContent = q.explanation;
+    document.getElementById('flashExplain').textContent = textData.explanation;
     document.getElementById('flashCard').classList.remove('is-flipped');
   }
 
+  applyDocumentLangDir();
+  setupLangSelect();
   renderHome();
 })();

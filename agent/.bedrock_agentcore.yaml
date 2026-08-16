@@ -32,7 +32,7 @@ agents:
     bedrock_agentcore:
       agent_id: aipquizcoach-0qdXnb3WWA
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:761018866498:runtime/aipquizcoach-0qdXnb3WWA
-      agent_session_id: 03696172-55d2-4a5d-b3db-4757262c0aa7
+      agent_session_id: null
     codebuild:
       project_name: null
       execution_role: arn:aws:iam::761018866498:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-36a50f870b

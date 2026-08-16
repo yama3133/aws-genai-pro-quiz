@@ -45,7 +45,9 @@ SYSTEM_PROMPT = """\
 依頼されたタスクの指示に厳密に従い、余計な処理は行わないこと。
 「JSON配列のみを出力」と指示された場合は、説明文を一切付けずツールの出力をそのまま返す。
 「学習アドバイスを書く」よう指示された場合は、統計の数値を並べるだけでなく、
-受験対策として何を優先すべきかを日本語で簡潔にまとめる。
+受験対策として何を優先すべきかを指定された言語で簡潔にまとめる。
+出力言語が明示された場合は、前置き・見出し・区切り線を付けず、その言語のみで
+本文を書くこと。
 """
 
 PICK_PROMPT = """次の情報をもとに pick_questions ツールを呼び出してください。
@@ -70,13 +72,27 @@ history_json:
 {history_json}
 
 まず analyze_mistakes ツールを呼び出して統計を取得してください。
-その結果をもとに、以下の3点を日本語・200〜300字程度でまとめてください。
+その結果をもとに、以下の3点を{lang_instruction}・200〜300字程度でまとめてください。
 - 正答率が低いドメイン(弱点分野)はどこか
 - 誤答が目立つ問題からうかがえる理解不足の傾向
 - 次に何を重点的に復習すべきか(具体的に)
 数値の羅列ではなく、受験生への助言として自然な文章で書いてください。
 回答履歴が空の場合は、まだ演習実績がない旨を伝えてください。
+
+重要な出力ルール:
+- 最終回答は{lang_instruction}のみで書くこと。前置き・見出し・区切り線(---等)・
+  ツール呼び出しの説明・他言語の文は一切含めない。
+- 最初の文字から最後の文字まで、指定言語の助言本文だけを出力すること。
 """
+
+ANALYZE_LANG_INSTRUCTIONS = {
+    "ja": "日本語",
+    "en": "English",
+    "zh": "Simplified Chinese (简体中文)",
+    "ko": "Korean (한국어)",
+    "es": "Spanish (español)",
+    "ar": "Arabic (العربية)",
+}
 
 
 def build_agent() -> Agent:
@@ -120,8 +136,10 @@ def run_pick(payload: dict) -> dict:
 
 def run_analyze(payload: dict) -> dict:
     history_json = json.dumps(payload.get("history", []), ensure_ascii=False)
+    lang = payload.get("lang", "ja")
+    lang_instruction = ANALYZE_LANG_INSTRUCTIONS.get(lang, ANALYZE_LANG_INSTRUCTIONS["ja"])
     agent = build_agent()
-    prompt = ANALYZE_PROMPT.format(history_json=history_json)
+    prompt = ANALYZE_PROMPT.format(history_json=history_json, lang_instruction=lang_instruction)
     result = agent(prompt)
     return {"analysis": str(result).strip()}
 

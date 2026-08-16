@@ -14,14 +14,15 @@
       <span class="brand-mark">AIP</span>
       <div class="brand-text">
         <strong>AWS Certified Generative AI Developer</strong>
-        <span>Professional (AIP-C01) 問題集</span>
+        <span data-i18n="topbar.subtitle">Professional (AIP-C01) 問題集</span>
       </div>
     </div>
     <div id="timerBox" class="timer-box hidden">
-      <span class="timer-label">残り時間</span>
+      <span class="timer-label" data-i18n="timer.label">残り時間</span>
       <span id="timerValue" class="timer-value">180:00</span>
     </div>
-    <button id="quitBtn" class="btn btn-ghost hidden">中断してホームへ</button>
+    <select id="langSelect" class="lang-select" aria-label="Language"></select>
+    <button id="quitBtn" class="btn btn-ghost hidden" data-i18n="quit.button">中断してホームへ</button>
   </div>
 </header>
 
@@ -31,50 +32,50 @@
   <section class="home">
     <div class="stock-banner">
       <div>
-        <strong id="stockCount">0</strong> 問ストック中
+        <span id="stockLine"></span>
       </div>
       <div class="domain-chips" id="domainChips"></div>
     </div>
 
     <div class="ai-panel">
       <div class="ai-block">
-        <h3>🤖 AIコーチ: 苦手問題を復習</h3>
-        <p>Strands Agent(Amazon Bedrock AgentCore Runtime)が、これまでの正解・不正解の履歴から誤答・未回答の問題を優先して最大30問選びます。</p>
-        <button id="weakFocusBtn" class="btn btn-primary">苦手問題を復習する</button>
+        <h3 data-i18n="home.aiWeak.title">🤖 AIコーチ: 苦手問題を復習</h3>
+        <p data-i18n="home.aiWeak.desc"></p>
+        <button id="weakFocusBtn" class="btn btn-primary" data-i18n="home.aiWeak.button">苦手問題を復習する</button>
         <span id="weakFocusStatus" class="ai-status"></span>
       </div>
       <div class="ai-block">
-        <h3>🤖 AIコーチ: 弱点分析</h3>
-        <p>これまでの回答履歴をAIが分析し、正答率の低いドメインや誤答の傾向を日本語でまとめます。</p>
-        <button id="analyzeBtn" class="btn btn-ghost">これまでの回答から弱点を分析する</button>
+        <h3 data-i18n="home.aiAnalyze.title">🤖 AIコーチ: 弱点分析</h3>
+        <p data-i18n="home.aiAnalyze.desc"></p>
+        <button id="analyzeBtn" class="btn btn-ghost" data-i18n="home.aiAnalyze.button">これまでの回答から弱点を分析する</button>
         <div id="analyzeResult" class="ai-result hidden"></div>
       </div>
     </div>
 
     <div class="mode-grid">
       <article class="mode-card">
-        <h2>ランダム 200問</h2>
-        <p>問題バンク全体からランダムに最大200問。1問ごとに回答・解説を表示します。</p>
-        <button class="btn btn-primary" data-mode="random200">開始する</button>
+        <h2 data-i18n="home.random.title">ランダム 200問</h2>
+        <p data-i18n="home.random.desc"></p>
+        <button class="btn btn-primary" data-mode="random200" data-i18n="home.random.start">開始する</button>
       </article>
 
       <article class="mode-card">
-        <h2>カテゴリー別 100問</h2>
-        <p>5つの出題ドメインから1つ選び、そのドメインの問題を最大100問出題します。1問ごとに回答・解説を表示します。</p>
+        <h2 data-i18n="home.category.title">カテゴリー別 100問</h2>
+        <p data-i18n="home.category.desc"></p>
         <select id="categorySelect" class="select"></select>
-        <button class="btn btn-primary" data-mode="category100">開始する</button>
+        <button class="btn btn-primary" data-mode="category100" data-i18n="home.category.start">開始する</button>
       </article>
 
       <article class="mode-card mode-card-exam">
-        <h2>模擬試験 85問</h2>
-        <p>実際の試験を模した85問構成(ドメイン配点に比例して出題)。180分のカウントダウンタイマー付き。<strong>採点は最後にまとめて表示</strong>されます(1問ごとの解説は出ません)。</p>
-        <button class="btn btn-primary" data-mode="mock85">模擬試験を開始</button>
+        <h2 data-i18n="home.mock.title">模擬試験 85問</h2>
+        <p><span data-i18n="home.mock.desc1"></span><strong data-i18n="home.mock.desc2"></strong><span data-i18n="home.mock.desc3"></span></p>
+        <button class="btn btn-primary" data-mode="mock85" data-i18n="home.mock.start">模擬試験を開始</button>
       </article>
 
       <article class="mode-card">
-        <h2>一問一答フラッシュカード</h2>
-        <p>ランダム150問を、カードをめくる一問一答形式で復習します。</p>
-        <button class="btn btn-primary" data-mode="flash150">開始する</button>
+        <h2 data-i18n="home.flash.title">一問一答フラッシュカード</h2>
+        <p data-i18n="home.flash.desc"></p>
+        <button class="btn btn-primary" data-mode="flash150" data-i18n="home.flash.start">開始する</button>
       </article>
     </div>
   </section>
@@ -88,16 +89,16 @@
           <span id="quizModeLabel"></span>
           <span id="quizProgressLabel"></span>
         </div>
-        <button id="navToggleBtn" class="nav-toggle-btn" type="button" aria-expanded="true" title="問題一覧の表示切替">▲</button>
+        <button id="navToggleBtn" class="nav-toggle-btn" type="button" aria-expanded="true" data-i18n-attr-title="quiz.navToggle">▲</button>
       </div>
       <div id="quizNavBody" class="quiz-nav-body">
         <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
         <div id="qNavGrid" class="qnav-grid"></div>
         <div class="qnav-legend">
-          <span><i class="dot dot-correct"></i>正解</span>
-          <span><i class="dot dot-incorrect"></i>不正解</span>
-          <span><i class="dot dot-current"></i>現在</span>
-          <span><i class="dot dot-unanswered"></i>未回答</span>
+          <span><i class="dot dot-correct"></i><span data-i18n="quiz.legend.correct"></span></span>
+          <span><i class="dot dot-incorrect"></i><span data-i18n="quiz.legend.incorrect"></span></span>
+          <span><i class="dot dot-current"></i><span data-i18n="quiz.legend.current"></span></span>
+          <span><i class="dot dot-unanswered"></i><span data-i18n="quiz.legend.unanswered"></span></span>
         </div>
       </div>
     </aside>
@@ -117,10 +118,10 @@
       </div>
 
       <div class="qcard-actions">
-        <button id="prevBtn" class="btn btn-ghost">戻る</button>
-        <button id="submitBtn" class="btn btn-primary">回答する</button>
-        <button id="nextBtn" class="btn btn-primary hidden">次の問題へ</button>
-        <button id="finishBtn" class="btn btn-primary hidden">結果を見る</button>
+        <button id="prevBtn" class="btn btn-ghost" data-i18n="quiz.back">戻る</button>
+        <button id="submitBtn" class="btn btn-primary" data-i18n="quiz.submit">回答する</button>
+        <button id="nextBtn" class="btn btn-primary hidden" data-i18n="quiz.next">次の問題へ</button>
+        <button id="finishBtn" class="btn btn-primary hidden" data-i18n="quiz.finish">結果を見る</button>
       </div>
     </div>
   </section>
@@ -137,7 +138,7 @@
         <div class="flash-face flash-front">
           <span id="flashDomainBadge" class="badge"></span>
           <p id="flashQuestion"></p>
-          <span class="flash-hint">クリックして解答を表示</span>
+          <span class="flash-hint" data-i18n="flash.hint">クリックして解答を表示</span>
         </div>
         <div class="flash-face flash-back">
           <p id="flashAnswer"></p>
@@ -146,9 +147,9 @@
       </div>
     </div>
     <div class="flash-actions">
-      <button id="flashPrev" class="btn btn-ghost">前へ</button>
-      <button id="flashFlip" class="btn btn-primary">裏面を見る</button>
-      <button id="flashNext" class="btn btn-primary">次へ</button>
+      <button id="flashPrev" class="btn btn-ghost" data-i18n="flash.prev">前へ</button>
+      <button id="flashFlip" class="btn btn-primary" data-i18n="flash.flip">裏面を見る</button>
+      <button id="flashNext" class="btn btn-primary" data-i18n="flash.next">次へ</button>
     </div>
   </section>
 </template>
@@ -159,14 +160,15 @@
     <div class="result-score" id="resultScore"></div>
     <div class="result-bars" id="resultBars"></div>
     <div class="result-actions">
-      <button id="reviewBtn" class="btn btn-ghost">解答を見直す</button>
-      <button id="homeBtn" class="btn btn-primary">ホームに戻る</button>
+      <button id="reviewBtn" class="btn btn-ghost" data-i18n="result.review">解答を見直す</button>
+      <button id="homeBtn" class="btn btn-primary" data-i18n="result.home">ホームに戻る</button>
     </div>
     <div id="reviewList" class="review-list hidden"></div>
   </section>
 </template>
 
 <script src="questions.js"></script>
+<script src="i18n.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

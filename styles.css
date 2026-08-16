@@ -47,6 +47,10 @@ body{
 .timer-value{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;}
 .timer-box.time-low .timer-value{color:var(--red);}
 .hidden{display:none !important;}
+.lang-select{
+  font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;
+  background:#fff;color:var(--ink);cursor:pointer;
+}
 
 /* ---- Buttons ---- */
 .btn{
