@@ -32,9 +32,8 @@ body{
   padding:12px 24px;
 }
 .brand{display:flex;align-items:center;gap:10px;margin-right:auto;}
-.brand-mark{
-  background:var(--purple);color:#fff;font-weight:800;
-  font-size:13px;padding:6px 8px;border-radius:4px;letter-spacing:.5px;
+.brand-badge{
+  width:40px;height:40px;object-fit:contain;flex:none;
 }
 .brand-text{display:flex;flex-direction:column;line-height:1.25;}
 .brand-text strong{font-size:14px;}

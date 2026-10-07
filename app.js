@@ -331,7 +331,7 @@
   // ---------- Quiz engine ----------
   function beginQuiz(mode, questions, showFeedback, modeLabelInfo) {
     state.mode = mode;
-    state.questions = questions;
+    state.questions = questions.map(q => ({ ...q, options: shuffle(q.options) }));
     state.showFeedback = showFeedback;
     state.answers = {};
     state.submitted = {};
@@ -464,7 +464,7 @@
       });
 
       const text = document.createElement('span');
-      text.textContent = `${opt.id}. ${trOpt.text}`;
+      text.textContent = trOpt.text;
 
       row.appendChild(input);
       row.appendChild(text);
@@ -521,7 +521,7 @@
     const feedback = document.getElementById('qFeedback');
     const head = document.getElementById('qFeedbackHead');
     const correct = isAnswerCorrect(q);
-    head.textContent = correct ? t('quiz.feedback.correct') : t('quiz.feedback.incorrect', { answer: q.correct.join(', ') });
+    head.textContent = correct ? t('quiz.feedback.correct') : t('quiz.feedback.incorrect');
     head.className = 'qfeedback-head ' + (correct ? 'correct' : 'incorrect');
     document.getElementById('qExplanation').textContent = textData.explanation;
     feedback.classList.remove('hidden');
@@ -664,11 +664,23 @@
     });
   }
 
+  // 選択肢の記号(A/B/C...)は画面に出さないため、回答・正解は選択肢の本文で表示する
+  function optionTextsFor(q, ids, textData) {
+    return ids
+      .map(id => (textData.options.find(o => o.id === id) || q.options.find(o => o.id === id) || {}).text)
+      .filter(Boolean);
+  }
+
   function renderReviewItem(item, q, i, textData) {
-    const selText = (state.answers[q.id] || []).join(', ') || t('result.none');
+    const listHtml = texts => texts.length
+      ? texts.map(s => `<div>・${escapeHtml(s)}</div>`).join('')
+      : `<div>${escapeHtml(t('result.none'))}</div>`;
+    const block = (label, texts) =>
+      `<div style="margin:8px 0"><strong>${escapeHtml(label)}</strong>${listHtml(texts)}</div>`;
     item.innerHTML = `
       <div class="qtext">${i + 1}. ${escapeHtml(textData.question)}</div>
-      <p><strong>${escapeHtml(t('result.yourAnswer'))}</strong> ${escapeHtml(selText)} / <strong>${escapeHtml(t('result.correctAnswer'))}</strong> ${escapeHtml(q.correct.join(', '))}</p>
+      ${block(t('result.yourAnswer'), optionTextsFor(q, state.answers[q.id] || [], textData))}
+      ${block(t('result.correctAnswer'), optionTextsFor(q, q.correct, textData))}
       <p class="qexplanation">${escapeHtml(textData.explanation)}</p>`;
   }
 
@@ -743,7 +755,7 @@
       .filter(o => q.correct.includes(o.id))
       .map(o => {
         const trOpt = textData.options.find(x => x.id === o.id) || o;
-        return `${o.id}. ${trOpt.text}`;
+        return trOpt.text;
       });
     document.getElementById('flashAnswer').textContent = correctOpts.join(' / ');
     document.getElementById('flashExplain').textContent = textData.explanation;
