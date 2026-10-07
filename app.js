@@ -84,6 +84,24 @@
     };
   }
 
+  async function ensureCardTranslated(card, lang) {
+    if (lang === "ja") return { front: card.front, back: card.back };
+    const key = card.id + ":" + lang;
+    if (translationCache.has(key)) return translationCache.get(key);
+    const res = await callAgent({ action: "translate", targetLang: lang, texts: [card.front, card.back] });
+    const arr = res.translations;
+    if (!Array.isArray(arr) || arr.length !== 2) throw new Error("bad translation response");
+    const tr = { front: arr[0], back: arr[1] };
+    translationCache.set(key, tr);
+    persistTrCache();
+    return tr;
+  }
+
+  function cachedCardTextOf(card, lang) {
+    if (lang === "ja") return { front: card.front, back: card.back };
+    return translationCache.get(card.id + ":" + lang) || null;
+  }
+
   function plainTextOf(q) {
     return { question: q.question, options: q.options, explanation: q.explanation };
   }
@@ -323,9 +341,27 @@
     beginQuiz('mock85', pool, false, { key: 'mock' });
   }
 
+  // フラッシュカードは問題バンクとは別データ(flashcards.js)。ドメイン配点に比例して抽出する
+  function pickFlashCards(total) {
+    const quotas = DOMAIN_LIST.map(d => {
+      const exact = total * d.weight / 100;
+      return { d, n: Math.floor(exact), frac: exact - Math.floor(exact) };
+    });
+    let rest = total - quotas.reduce((a, x) => a + x.n, 0);
+    quotas.slice().sort((a, b) => b.frac - a.frac).forEach(x => { if (rest > 0) { x.n++; rest--; } });
+    let pool = [];
+    quotas.forEach(x => {
+      pool = pool.concat(shuffle(FLASHCARDS.filter(c => c.domain === x.d.id)).slice(0, x.n));
+    });
+    if (pool.length < total) {
+      const used = new Set(pool.map(c => c.id));
+      pool = pool.concat(shuffle(FLASHCARDS.filter(c => !used.has(c.id))).slice(0, total - pool.length));
+    }
+    return shuffle(pool);
+  }
+
   function startFlash150() {
-    const pool = shuffle(ALL_Q).slice(0, Math.min(150, ALL_Q.length));
-    beginFlash(pool);
+    beginFlash(pickFlashCards(Math.min(150, FLASHCARDS.length)));
   }
 
   // ---------- Quiz engine ----------
@@ -727,38 +763,32 @@
   }
 
   function renderFlash() {
-    const q = state.questions[state.current];
+    const card = state.questions[state.current];
     const lang = getLang();
-    const cached = cachedTextOf(q, lang);
-    renderFlashWithText(q, cached || plainTextOf(q));
+    const cached = cachedCardTextOf(card, lang);
+    renderFlashWithText(card, cached || { front: card.front, back: card.back });
 
     if (lang !== 'ja' && !cached) {
       const myToken = ++state.flashTranslateToken;
-      ensureTranslated(q, lang).then(tr => {
+      ensureCardTranslated(card, lang).then(tr => {
         if (state.flashTranslateToken !== myToken) return;
-        if (state.questions[state.current] !== q) return;
-        renderFlashWithText(q, tr);
+        if (state.questions[state.current] !== card) return;
+        renderFlashWithText(card, tr);
       }).catch(() => { /* keep original text */ });
     } else {
       ++state.flashTranslateToken;
     }
   }
 
-  function renderFlashWithText(q, textData) {
+  function renderFlashWithText(card, textData) {
     document.getElementById('flashProgressLabel').textContent =
       `${state.current + 1} / ${state.questions.length}`;
     document.getElementById('flashProgressFill').style.width =
       `${((state.current + 1) / state.questions.length) * 100}%`;
-    document.getElementById('flashDomainBadge').textContent = `D${q.domain}: ${domainName(q.domain)}`;
-    document.getElementById('flashQuestion').textContent = textData.question;
-    const correctOpts = q.options
-      .filter(o => q.correct.includes(o.id))
-      .map(o => {
-        const trOpt = textData.options.find(x => x.id === o.id) || o;
-        return trOpt.text;
-      });
-    document.getElementById('flashAnswer').textContent = correctOpts.join(' / ');
-    document.getElementById('flashExplain').textContent = textData.explanation;
+    document.getElementById('flashDomainBadge').textContent = `D${card.domain}: ${domainName(card.domain)}`;
+    document.getElementById('flashQuestion').textContent = textData.front;
+    document.getElementById('flashAnswer').textContent = textData.back;
+    document.getElementById('flashExplain').textContent = '';
     document.getElementById('flashCard').classList.remove('is-flipped');
   }
 
