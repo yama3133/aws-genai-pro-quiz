@@ -133,12 +133,14 @@ body{
 .qnav-btn.is-current{border-color:var(--purple);border-width:2px;color:var(--purple-dark);font-weight:700;}
 .qnav-btn.is-correct{background:var(--green-bg);border-color:var(--green);color:var(--green);}
 .qnav-btn.is-incorrect{background:var(--red-bg);border-color:var(--red);color:var(--red);}
+.qnav-btn.is-answered{background:#eef2f7;border-color:#94a3b8;color:#334155;}
 .qnav-legend{display:flex;flex-direction:column;gap:6px;font-size:11px;color:var(--ink-soft);}
 .qnav-legend span{display:flex;align-items:center;gap:6px;}
 .dot{width:10px;height:10px;border-radius:2px;display:inline-block;border:1px solid var(--border);}
 .dot-correct{background:var(--green-bg);border-color:var(--green);}
 .dot-incorrect{background:var(--red-bg);border-color:var(--red);}
 .dot-current{border-color:var(--purple);border-width:2px;}
+.dot-answered{background:#eef2f7;border-color:#94a3b8;}
 .dot-unanswered{background:#fff;}
 
 .qcard{border:1px solid var(--border);border-radius:8px;padding:28px;}

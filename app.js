@@ -384,6 +384,11 @@
     appEl.appendChild(tpl.content.cloneNode(true));
     applyI18n(appEl);
     document.getElementById('quizModeLabel').textContent = quizModeLabelText();
+    // 凡例: 正誤を見せないモードでは「正解/不正解」ではなく「回答済み」を出す
+    ['legendCorrect', 'legendIncorrect'].forEach(id => {
+      document.getElementById(id).style.display = showFeedback ? '' : 'none';
+    });
+    document.getElementById('legendAnswered').style.display = showFeedback ? 'none' : '';
 
     const navEl = document.querySelector('.quiz-nav');
     const navToggleBtn = document.getElementById('navToggleBtn');
@@ -424,12 +429,13 @@
   function updateNavGrid() {
     const grid = document.getElementById('qNavGrid');
     [...grid.children].forEach((b, i) => {
-      b.classList.remove('is-current', 'is-correct', 'is-incorrect');
+      b.classList.remove('is-current', 'is-correct', 'is-incorrect', 'is-answered');
       const q = state.questions[i];
       if (i === state.current) b.classList.add('is-current');
       if (state.submitted[q.id]) {
-        const correct = isAnswerCorrect(q);
-        b.classList.add(correct ? 'is-correct' : 'is-incorrect');
+        // 模擬試験(採点を最後にまとめて出す)では正誤を見せず、回答済みの印だけ付ける
+        if (!state.showFeedback) b.classList.add('is-answered');
+        else b.classList.add(isAnswerCorrect(q) ? 'is-correct' : 'is-incorrect');
       }
     });
     const answeredCount = Object.keys(state.submitted).length;
